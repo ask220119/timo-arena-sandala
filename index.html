@@ -1,0 +1,1409 @@
+<title>Sandala Arena</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1e90ff; font-family: system-ui, sans-serif; user-select: none; }
+  canvas { display: block; }
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,.6); }
+  #cross { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; }
+  #cross::before, #cross::after { content: ""; position: absolute; background: #fff; box-shadow: 0 0 2px #000; }
+  #cross::before { left: 8px; top: 0; width: 2px; height: 18px; }
+  #cross::after { top: 8px; left: 0; height: 2px; width: 18px; }
+  #charge { position: absolute; left: 50%; top: calc(50% + 24px); width: 120px; height: 8px; margin-left: -60px; background: rgba(0,0,0,.4); border-radius: 4px; overflow: hidden; display: none; }
+  #charge div { height: 100%; width: 0; background: #ffd23a; }
+  #charge.full div { background: #ff4b2b; }
+  #hp { position: absolute; top: 12px; left: 16px; font-size: 28px; }
+  #mode { position: absolute; top: 52px; left: 16px; font-size: 16px; font-weight: 700; }
+  #board { position: absolute; top: 12px; right: 16px; font-size: 15px; background: rgba(0,0,0,.25); padding: 8px 12px; border-radius: 8px; min-width: 150px; }
+  #board .me { color: #ffe066; }
+  #feed { position: absolute; top: 200px; right: 16px; font-size: 15px; text-align: right; }
+  #bar { position: absolute; bottom: 44px; width: 100%; display: flex; justify-content: center; gap: 6px; }
+  .slot { width: 46px; height: 46px; border: 3px solid rgba(255,255,255,.35); border-radius: 6px; box-sizing: border-box; font-size: 11px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 2px; }
+  .slot.on { border-color: #fff; transform: scale(1.12); }
+  #emojis { position: absolute; bottom: 10px; width: 100%; text-align: center; font-size: 16px; }
+  #cross.hit::before, #cross.hit::after { background: #ff3b3b; }
+  #ko { position: absolute; left: 0; right: 0; top: calc(50% - 70px); text-align: center; font-size: 34px; font-weight: 900; color: #ffe066; opacity: 0; transition: opacity .2s; }
+  #ouch { position: absolute; inset: 0; box-shadow: inset 0 0 120px 30px rgba(255,0,0,.7); opacity: 0; }
+  #big { position: absolute; top: 32%; width: 100%; text-align: center; font-size: 56px; font-weight: 900; }
+  #start { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,40,90,.55); color: #fff; cursor: pointer; }
+  #start .box { background: rgba(0,0,0,.45); padding: 24px 32px; border-radius: 14px; max-width: 460px; line-height: 1.6; }
+  #start h1 { margin: 0 0 8px; font-size: 40px; }
+  #start kbd { background: #fff; color: #123; border-radius: 4px; padding: 0 6px; font-weight: 700; }
+  #start summary { cursor: pointer; margin-top: 10px; font-weight: 700; }
+  #netStatus { margin-bottom: 10px; opacity: .9; }
+  #joinRow { display: flex; gap: 8px; }
+  #joinRow input, #chatIn { flex: 1; min-width: 0; font: inherit; font-size: 18px; padding: 8px 10px; border-radius: 8px; border: 0; user-select: text; -webkit-user-select: text; }
+  #joinRow button { font: inherit; font-size: 18px; font-weight: 800; padding: 8px 18px; border-radius: 8px; border: 0; background: #ffd23a; color: #123; cursor: pointer; }
+  #passIn { display: none; max-width: 110px; }
+  #joinErr { color: #ffb3b3; min-height: 1.4em; margin-top: 4px; }
+  #resumeMsg { display: none; font-weight: 700; font-size: 20px; }
+  /* Chat: hidden until opened with 💬, T or Enter */
+  #chatBtn { position: fixed; top: 76px; left: 16px; font-size: 22px; background: rgba(0,0,0,.3); color: #fff; border: 2px solid rgba(255,255,255,.5); border-radius: 10px; padding: 2px 8px; cursor: pointer; }
+  #chatBadge { font-size: 12px; font-weight: 800; background: #ff3b3b; border-radius: 8px; padding: 0 5px; margin-left: 2px; }
+  #chatBadge:empty { display: none; }
+  #chat { position: fixed; left: 16px; top: 116px; width: min(340px, calc(100vw - 32px)); display: none; flex-direction: column; gap: 6px; }
+  #chat.open { display: flex; }
+  #chatLog { background: rgba(0,0,0,.35); color: #fff; border-radius: 8px; padding: 6px 10px; font-size: 14px; max-height: 180px; overflow-y: auto; text-shadow: 0 1px 2px #000; }
+  #chatLog:empty { display: none; }
+  #chatLog b { color: #ffe066; }
+  /* Touch controls, shown on tablets/phones */
+  body, canvas { touch-action: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  #touch { display: none; position: fixed; inset: 0; pointer-events: none; }
+  body.touch #touch { display: block; }
+  body.touch #emojis, body.touch #bar { display: none !important; }   /* the colored button picks blocks */
+  @media (max-width: 600px) {
+    #board { font-size: 12px; padding: 4px 8px; min-width: 0; }
+    #feed { top: 150px; font-size: 13px; }
+    #hp { font-size: 22px; }
+    #mode { top: 42px; font-size: 13px; }
+    #start .box { margin: 16px; padding: 18px; font-size: 14px; }
+    #start h1 { font-size: 30px; }
+    #stick { left: 16px; bottom: 24px; width: 120px; height: 120px; }
+    #knob { left: 33px; top: 33px; width: 54px; height: 54px; }
+  }
+  #stick { position: absolute; left: 30px; bottom: 30px; width: 150px; height: 150px; border-radius: 50%; background: rgba(255,255,255,.18); border: 3px solid rgba(255,255,255,.45); pointer-events: auto; }
+  #knob { position: absolute; left: 45px; top: 45px; width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,.65); }
+  .tb { position: absolute; width: 64px; height: 64px; border-radius: 50%; background: rgba(0,0,0,.3); border: 3px solid rgba(255,255,255,.5); box-sizing: border-box; display: flex; align-items: center; justify-content: center; font-size: 30px; pointer-events: auto; }
+  .tb.big { width: 96px; height: 96px; font-size: 46px; }
+  .tb.on { background: rgba(255,210,58,.6); }
+  #tThrow { right: 30px; bottom: 40px; }
+  #tJump { right: 140px; bottom: 24px; }
+  #tBreak { right: 140px; bottom: 104px; }
+  #tBuild { right: 46px; bottom: 156px; }
+  #tType { right: 126px; bottom: 184px; }
+  #tEmoji { right: 46px; bottom: 236px; }
+  #emojiPick { position: absolute; right: 120px; bottom: 236px; display: none; gap: 4px; padding: 6px; border-radius: 12px; background: rgba(0,0,0,.35); font-size: 36px; pointer-events: auto; }
+  #emojiPick.open { display: flex; }
+  #emojiPick span { padding: 2px 4px; }
+</style>
+<div id="hud">
+  <div id="cross"></div>
+  <div id="charge"><div></div></div>
+  <div id="hp"></div>
+  <div id="mode"></div>
+  <div id="board"></div>
+  <div id="feed"></div>
+  <div id="bar"></div>
+  <div id="emojis"></div>
+  <div id="big"></div>
+  <div id="ko">KO! 🏆</div>
+  <div id="ouch"></div>
+</div>
+<div id="touch">
+  <div id="stick"><div id="knob"></div></div>
+  <div id="emojiPick"></div>
+  <div class="tb" id="tEmoji">😀</div>
+  <div class="tb" id="tBuild">🧱</div>
+  <div class="tb" id="tType"></div>
+  <div class="tb" id="tBreak">⛏️</div>
+  <div class="tb" id="tJump">⬆️</div>
+  <div class="tb big" id="tThrow">🩴</div>
+</div>
+<button id="chatBtn" title="Chat (T)">💬<span id="chatBadge"></span></button>
+<div id="chat"><div id="chatLog"></div><input id="chatIn" maxlength="100" placeholder="Say something… (Enter)" autocomplete="off"></div>
+<div id="start"><div class="box">
+  <h1>Sandala Arena</h1>
+  <div id="netStatus">Connecting…</div>
+  <div id="joinRow"><input id="nameIn" maxlength="12" placeholder="Your name" autocomplete="off"><input id="passIn" type="password" inputmode="numeric" maxlength="12" placeholder="Password" autocomplete="off"><button id="playBtn">Play</button></div>
+  <div id="joinErr"></div>
+  <div id="resumeMsg">Paused — click or tap to keep playing</div>
+  <details><summary>How to play</summary>
+  <div><kbd>W A S D</kbd> move &nbsp; <kbd>Mouse</kbd> or <kbd>Arrows</kbd> look &nbsp; <kbd>Space</kbd> jump</div>
+  <div><kbd>Click</kbd> throw a slipper 🩴 &nbsp; <kbd>Hold click</kbd> charge a POWER throw</div>
+  <div><kbd>B</kbd> build mode: <kbd>Click</kbd> place block, <kbd>Right click</kbd> remove, <kbd>Wheel</kbd> pick block</div>
+  <div><kbd>1</kbd>–<kbd>6</kbd> emojis &nbsp; <kbd>T</kbd> chat &nbsp; <kbd>R</kbd> respawn</div>
+  <div style="margin-top:8px">3 hits = dead. A full POWER throw kills in one hit and smashes built blocks. Gray walls can't be destroyed. Green blocks bounce you up! 👑 Taym, the owner, throws two slippers at once that hit twice as hard.</div>
+  <div style="margin-top:8px">📱 Tablet: left stick moves, drag the screen to look, hold 🩴 to charge, 🧱 builds (⛏️ breaks).</div>
+  </details>
+</div></div>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from "three";
+
+// ---------------------------------------------------------------------------
+// Tunables
+// ---------------------------------------------------------------------------
+const GRAVITY = 25;
+const JUMP_SPEED = 9;           // ~1.6 m high, enough to hop onto one block
+const BOUNCE_PAD_SPEED = 17;    // launch speed off a bounce block
+const PLAYER_SPEED = 6;
+const BOT_SPEED = 4.5;
+const MOUSE_SENSITIVITY = 0.0025;
+const TURN_SPEED = 2.5;         // rad/s with arrow keys
+const HALF_W = 0.35;            // player collision half-width
+const HEIGHT = 1.85;            // player collision height
+
+const MAX_HP = 3;
+const RESPAWN_TIME = 3;
+const SPAWN_SHIELD = 2;         // seconds of protection after spawning (ends early if you throw)
+const THROW_COOLDOWN = 0.35;
+const CHARGE_TIME = 0.9;        // hold this long for a full POWER throw
+const NORMAL_SPEED = 18;
+const POWER_SPEED = 32;
+const BALL_GRAVITY = 20;
+const POWER_GRAVITY = 10;
+const BALL_LIFE = 5;
+const BALL_RESTITUTION = 0.55;
+const HIT_MIN_SPEED = 5;        // slow rolling balls don't hurt
+
+const ARENA = 20;               // playable cells are -ARENA .. ARENA-1
+const WALL_H = 4;
+const BUILD_MAX_H = 12;
+const BUILD_REACH = 12;
+
+const MAX_PLAYERS = 10;
+const MY_BLOCKS_MAX = 100;      // each player shares their newest 100 blocks (the oldest vanish)
+const BROKEN_MAX = 30;
+const SEND_RATE = 15;           // position updates per second
+const TAYM_SPREAD = 0.07;       // radians between Taym's two slippers
+
+const BOT_NAMES = ["Bolt", "Pixel", "Cubey", "Zap", "Nova"];
+const EMOJIS = ["😀", "😂", "😡", "👍", "😎", "😭"];
+
+// ---------------------------------------------------------------------------
+// Scene: very blue sky, green ground
+// ---------------------------------------------------------------------------
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+// Tablets have very sharp screens; drawing at full sharpness there makes the game stutter.
+renderer.setPixelRatio(Math.min(devicePixelRatio, matchMedia("(pointer: coarse)").matches ? 1.25 : 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1e90ff);
+scene.fog = new THREE.Fog(0x1e90ff, 45, 100);
+const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 200);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x3c7a3c, 1.2));
+const sun = new THREE.DirectionalLight(0xffffff, 2.0);
+sun.position.set(15, 30, 10);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, far: 80 });
+scene.add(sun);
+
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 300),
+  new THREE.MeshStandardMaterial({ color: 0x3cb043 }));
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// On a tall (portrait) screen widen the view so you can still see around you.
+function fitCamera() {
+  camera.aspect = innerWidth / innerHeight;
+  const vFov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(35)) / camera.aspect * 0.85);
+  camera.fov = camera.aspect >= 1 ? 70 : Math.min(100, THREE.MathUtils.radToDeg(vFov));
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+}
+fitCamera();
+addEventListener("resize", fitCamera);
+
+const V3 = THREE.Vector3;
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+// Yaw 0 faces -Z. forward = (-sin, 0, -cos)
+const forwardVec = yaw => new V3(-Math.sin(yaw), 0, -Math.cos(yaw));
+const rightVec = yaw => new V3(Math.cos(yaw), 0, -Math.sin(yaw));
+const yawFromVec = v => Math.atan2(-v.x, -v.z);
+
+// ---------------------------------------------------------------------------
+// Blocks on a 1 m grid. Cell (i,j,k) fills [i,i+1] x [j,j+1] x [k,k+1].
+// ---------------------------------------------------------------------------
+const blockTex = (() => {
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const g = c.getContext("2d");
+  g.fillStyle = "#fff"; g.fillRect(0, 0, 64, 64);
+  g.strokeStyle = "rgba(0,0,0,.28)"; g.lineWidth = 4; g.strokeRect(2, 2, 60, 60);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = THREE.NearestFilter;
+  return t;
+})();
+
+const TYPES = {
+  wall:   { name: "Wall",   color: 0x8a8a8a },
+  stone:  { name: "Stone",  color: 0xf0f0f0 },
+  wood:   { name: "Wood",   color: 0xb5793f },
+  red:    { name: "Red",    color: 0xe53935 },
+  yellow: { name: "Yellow", color: 0xffd23a },
+  bounce: { name: "Bounce", color: 0x7cff5a },
+};
+for (const t of Object.values(TYPES))
+  t.mat = new THREE.MeshStandardMaterial({ color: t.color, map: blockTex });
+const BUILD_TYPES = ["stone", "wood", "red", "yellow", "bounce"];
+const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+
+const blocks = new Map();   // "i,j,k" -> { type, mesh }
+const key = (i, j, k) => `${i},${j},${k}`;
+const blockAt = (i, j, k) => blocks.get(key(i, j, k))?.type;
+const isSolid = (i, j, k) => j < 0 || blocks.has(key(i, j, k));
+
+// Online play state (used by the Online play section near the end).
+const myU = Math.random().toString(36).slice(2, 8);   // my short id in this game session
+const net = { ready: false, room: null, joined: false, seq: 0, sendT: 0, throws: [], deaths: [], emoji: [0, ""], chat: [0, ""], broken: [] };
+const mine = new Map();          // blocks I built: id -> [i, j, k, type index]
+const recentBroken = new Map();  // block id -> when it broke here (so a late update can't bring it back)
+let blockSeq = 0;
+
+// Built blocks carry an id "<builder>.<n>" so every player can agree on them (see Online play).
+function addBlock(i, j, k, type, id = null) {
+  let mesh = null;
+  if (type !== "wall") {    // walls are drawn by one instanced mesh below
+    mesh = new THREE.Mesh(cubeGeo, TYPES[type].mat);
+    mesh.position.set(i + 0.5, j + 0.5, k + 0.5);
+    mesh.castShadow = mesh.receiveShadow = true;
+    scene.add(mesh);
+  }
+  blocks.set(key(i, j, k), { type, mesh, id });
+}
+
+// `byMe`: this player broke it, so tell everyone. `quiet`: no dust or sound.
+function removeBlock(i, j, k, byMe = false, quiet = false) {
+  const b = blocks.get(key(i, j, k));
+  if (!b || b.type === "wall") return false;   // walls can't be destroyed
+  scene.remove(b.mesh);
+  blocks.delete(key(i, j, k));
+  if (b.id) {
+    recentBroken.set(b.id, performance.now());
+    if (mine.has(b.id)) mine.delete(b.id);
+    else if (byMe) { net.broken.push(b.id); if (net.broken.length > BROKEN_MAX) net.broken.shift(); }
+  }
+  if (quiet) return true;
+  burst(new V3(i + 0.5, j + 0.5, k + 0.5), TYPES[b.type].mat, 10, 6);
+  sfx("break", new V3(i + 0.5, j + 0.5, k + 0.5));
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Sound effects: tiny synthesized blips, quieter the farther away they happen
+// ---------------------------------------------------------------------------
+let audio = null;    // created on the first click/tap (browsers require a gesture)
+const SOUNDS = {     // [wave, start Hz, end Hz, seconds]
+  throw: ["triangle", 500, 900, 0.1], powerThrow: ["sawtooth", 300, 1200, 0.25],
+  hit: ["square", 260, 90, 0.15], power: ["sawtooth", 180, 40, 0.4],
+  bounce: ["sine", 320, 260, 0.05], boing: ["sine", 180, 720, 0.3],
+  break: ["square", 140, 45, 0.2], die: ["triangle", 500, 60, 0.7],
+};
+function sfx(kind, at) {
+  if (!audio || audio.state !== "running") return;
+  const vol = 0.25 / (1 + at.distanceTo(me.pos) / 6);
+  if (vol < 0.015) return;
+  const [wave, f0, f1, len] = SOUNDS[kind];
+  const t = audio.currentTime, o = audio.createOscillator(), g = audio.createGain();
+  o.type = wave;
+  o.frequency.setValueAtTime(f0, t);
+  o.frequency.exponentialRampToValueAtTime(f1, t + len);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + len);
+  o.connect(g).connect(audio.destination);
+  o.start(t); o.stop(t + len);
+}
+
+// --- Level: border walls and "cubes missing a square" ----------------------
+function wall(i, j, k) { if (!blocks.has(key(i, j, k))) addBlock(i, j, k, "wall"); }
+
+for (let a = -ARENA - 1; a <= ARENA; a++)
+  for (let j = 0; j < WALL_H; j++) {
+    const window = j === 2 && ((a + 100) % 6 === 3);   // little holes to peek through
+    if (window) continue;
+    wall(a, j, -ARENA - 1); wall(a, j, ARENA);
+    wall(-ARENA - 1, j, a); wall(ARENA, j, a);
+  }
+
+// Hollow cube 5x4x5 with a door on one side and one roof square missing.
+function room(x0, z0, door) {
+  for (let i = 0; i < 5; i++) for (let k = 0; k < 5; k++) for (let j = 0; j < 4; j++) {
+    const edge = i === 0 || i === 4 || k === 0 || k === 4;
+    if (!edge && j < 3) continue;                  // hollow inside
+    if (j < 2 && i === 2 && ((door === "n" && k === 0) || (door === "s" && k === 4))) continue;
+    if (j < 2 && k === 2 && ((door === "w" && i === 0) || (door === "e" && i === 4))) continue;
+    if (j === 3 && i === 2 && k === 2) continue;     // the missing roof square
+    wall(x0 + i, j, z0 + k);
+  }
+}
+room(-14, -14, "s"); room(9, -14, "w"); room(-14, 9, "e"); room(9, 9, "n");
+
+// Free-standing wall pieces, each missing a square.
+function wallLine(x0, z0, len, alongX, h, gap) {
+  for (let n = 0; n < len; n++) for (let j = 0; j < h; j++) {
+    if (n === gap && j === 1) continue;
+    wall(alongX ? x0 + n : x0, j, alongX ? z0 : z0 + n);
+  }
+}
+wallLine(-3, -8, 7, true, 2, 3);
+wallLine(-3, 7, 7, true, 2, 3);
+wallLine(-8, -3, 7, false, 2, 3);
+wallLine(7, -3, 7, false, 2, 3);
+// Center tower (3x3, 3 high) with a corner block missing on top.
+for (let i = -1; i <= 1; i++) for (let k = -1; k <= 1; k++) for (let j = 0; j < 3; j++)
+  if (!(j === 2 && i === 1 && k === 1)) wall(i, j, k);
+
+{ // draw all walls in one instanced mesh
+  const cells = [...blocks.entries()].filter(([, b]) => b.type === "wall").map(([s]) => s.split(",").map(Number));
+  const inst = new THREE.InstancedMesh(cubeGeo, TYPES.wall.mat, cells.length);
+  const m = new THREE.Matrix4();
+  cells.forEach(([i, j, k], n) => inst.setMatrixAt(n, m.makeTranslation(i + 0.5, j + 0.5, k + 0.5)));
+  inst.castShadow = inst.receiveShadow = true;
+  scene.add(inst);
+}
+
+// Voxel ray march (Amanatides & Woo). Returns the first solid cell and the face normal.
+function raycast(o, d, maxDist) {
+  let i = Math.floor(o.x), j = Math.floor(o.y), k = Math.floor(o.z);
+  const si = Math.sign(d.x), sj = Math.sign(d.y), sk = Math.sign(d.z);
+  const tdx = Math.abs(1 / d.x), tdy = Math.abs(1 / d.y), tdz = Math.abs(1 / d.z);
+  let tx = si > 0 ? (i + 1 - o.x) * tdx : si < 0 ? (o.x - i) * tdx : Infinity;
+  let ty = sj > 0 ? (j + 1 - o.y) * tdy : sj < 0 ? (o.y - j) * tdy : Infinity;
+  let tz = sk > 0 ? (k + 1 - o.z) * tdz : sk < 0 ? (o.z - k) * tdz : Infinity;
+  for (;;) {
+    let t, n;
+    if (tx < ty && tx < tz) { i += si; t = tx; tx += tdx; n = [-si, 0, 0]; }
+    else if (ty < tz) { j += sj; t = ty; ty += tdy; n = [0, -sj, 0]; }
+    else { k += sk; t = tz; tz += tdz; n = [0, 0, -sk]; }
+    if (t > maxDist) return null;
+    if (isSolid(i, j, k)) return { i, j, k, n, t };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Particles
+// ---------------------------------------------------------------------------
+const particles = [];
+const bitGeo = new THREE.BoxGeometry(0.15, 0.15, 0.15);
+function burst(pos, material, count, speed) {
+  for (let n = 0; n < count; n++) {
+    const mesh = new THREE.Mesh(bitGeo, material);
+    mesh.position.copy(pos);
+    scene.add(mesh);
+    particles.push({ mesh, vel: new V3(rand(-1, 1), rand(0.3, 1.5), rand(-1, 1)).multiplyScalar(speed), life: rand(0.5, 1) });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sprites: name tags and emoji bubbles
+// ---------------------------------------------------------------------------
+function textSprite(text, font, color, w, h, scale) {
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const g = c.getContext("2d");
+  g.font = font; g.textAlign = "center"; g.textBaseline = "middle";
+  g.lineWidth = 6; g.strokeStyle = "rgba(0,0,0,.6)"; g.strokeText(text, w / 2, h / 2);
+  g.fillStyle = color; g.fillText(text, w / 2, h / 2);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false }));
+  s.scale.set(scale * w / h, scale, 1);
+  return s;
+}
+const emojiMats = {};
+function emojiMaterial(e) {
+  if (!emojiMats[e]) {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const g = c.getContext("2d");
+    g.font = "100px serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(e, 64, 72);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    emojiMats[e] = new THREE.SpriteMaterial({ map: tex, depthWrite: false });
+  }
+  return emojiMats[e];
+}
+
+// ---------------------------------------------------------------------------
+// Blue block players
+// ---------------------------------------------------------------------------
+function box(w, h, d, material, x, y, z, parent) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  parent.add(m);
+  return m;
+}
+// A limb hangs down from a pivot so rotating the pivot swings it.
+function limb(w, h, material, x, y, parent) {
+  const pivot = new THREE.Group();
+  pivot.position.set(x, y, 0);
+  parent.add(pivot);
+  box(w, h, w, material, 0, -h / 2, 0, pivot);
+  return pivot;
+}
+
+const players = [];
+// kind: "me" (this screen's player), "bot", or "remote" (someone else online).
+function makePlayer(name, kind) {
+  const human = kind === "me";
+  const root = new THREE.Group();     // origin at the feet, carries yaw
+  const body = new THREE.Group();     // tips over when dead
+  root.add(body);
+  const mats = [0x2f6fe0, 0x5b9bff, 0x1f4fb0].map(c => new THREE.MeshStandardMaterial({ color: c }));
+  const [blue, light, dark] = mats;
+  const eye = new THREE.MeshStandardMaterial({ color: 0x111111 });
+  box(0.7, 0.7, 0.4, blue, 0, 1.05, 0, body);          // torso
+  box(0.48, 0.48, 0.48, light, 0, 1.64, 0, body);      // head
+  box(0.09, 0.09, 0.04, eye, -0.11, 1.68, -0.25, body); // eyes (front = -Z)
+  box(0.09, 0.09, 0.04, eye, 0.11, 1.68, -0.25, body);
+  const parts = {
+    armL: limb(0.2, 0.68, blue, -0.45, 1.38, body),
+    armR: limb(0.2, 0.68, blue, 0.45, 1.38, body),
+    legL: limb(0.28, 0.7, dark, -0.17, 0.7, body),
+    legR: limb(0.28, 0.7, dark, 0.17, 0.7, body),
+  };
+  const bubble = new THREE.Sprite(emojiMaterial(EMOJIS[0]));
+  bubble.position.y = 2.75;
+  bubble.visible = false;
+  root.add(bubble);
+  scene.add(root);
+  const p = {
+    name: "", human, remote: kind === "remote", root, body, parts, mats, bubble, tag: null,
+    pos: new V3(), vel: new V3(), knock: new V3(), yaw: 0, pitch: 0,
+    hp: MAX_HP, alive: true, deadT: 0, onGround: false, shield: 0,
+    cooldown: 0, charging: false, charge: 0, throwAnim: 0, flash: 0,
+    emojiT: 0, walk: 0, kills: 0, deaths: 0, taym: false, u: "",
+    netPos: new V3(), netYaw: 0,      // where a remote player last said they were
+    ai: kind === "bot" ? { target: null, thinkT: 0, throwT: rand(1, 3), strafe: 1, wander: null, wanderT: 0, stuckT: 0, emoteT: rand(4, 12) } : null,
+  };
+  setName(p, name);
+  players.push(p);
+  if (!p.remote) respawn(p);
+  return p;
+}
+
+function setName(p, name, taym = p.taym) {
+  if (p.tag && p.name === name && p.taym === taym) return;
+  p.name = name; p.taym = taym;
+  if (p.tag) { p.root.remove(p.tag); p.tag.material.map.dispose(); p.tag.material.dispose(); }
+  p.tag = textSprite(taym ? `👑 ${name}` : name, "bold 40px system-ui", taym ? "#ffcc00" : p.human ? "#ffe066" : "#ffffff", 320, 64, 0.35);
+  p.tag.position.y = 2.15;
+  p.root.add(p.tag);
+}
+
+function removePlayer(p) {
+  scene.remove(p.root);
+  players.splice(players.indexOf(p), 1);
+}
+
+function collides(x, y, z) {
+  for (let i = Math.floor(x - HALF_W); i <= Math.floor(x + HALF_W - 1e-6); i++)
+    for (let j = Math.floor(y); j <= Math.floor(y + HEIGHT - 1e-6); j++)
+      for (let k = Math.floor(z - HALF_W); k <= Math.floor(z + HALF_W - 1e-6); k++)
+        if (isSolid(i, j, k)) return true;
+  return false;
+}
+
+function respawn(p) {
+  for (let tries = 0; tries < 200; tries++) {
+    const x = Math.floor(rand(-ARENA + 1, ARENA - 1)) + 0.5, z = Math.floor(rand(-ARENA + 1, ARENA - 1)) + 0.5;
+    if (collides(x, 0, z)) continue;
+    if (players.some(o => o !== p && o.alive && o.pos.distanceTo(new V3(x, 0, z)) < 6)) continue;
+    p.pos.set(x, 0, z);
+    break;
+  }
+  p.vel.set(0, 0, 0); p.knock.set(0, 0, 0);
+  p.hp = MAX_HP; p.alive = true; p.charging = false; p.charge = 0;
+  p.shield = SPAWN_SHIELD;
+  p.body.rotation.x = 0; p.root.visible = true;
+  p.yaw = yawFromVec(new V3(-p.pos.x, 0, -p.pos.z));   // face the middle
+}
+
+function emote(p, e) {
+  p.bubble.material = emojiMaterial(e);
+  p.bubble.visible = true;
+  p.emojiT = 2.5;
+}
+
+// Returns false when the hit didn't count (dead or spawn-shielded).
+function hurt(p, dmg, attacker, power, dir) {
+  if (!p.alive || p.shield > 0) return false;
+  p.hp -= dmg;
+  p.flash = 0.15;
+  p.knock.copy(dir).setY(0).normalize().multiplyScalar(power ? 14 : 6);
+  if (p.onGround) p.vel.y = power ? 8 : 4;
+  sfx(power ? "power" : "hit", p.pos);
+  if (p.human) hurtT = 0.4;
+  if (attacker.human) hitT = p.hp > 0 ? 0.2 : 0.8;
+  if (p.hp > 0) return true;
+  p.alive = false; p.deadT = 0; p.deaths++; p.charging = false;
+  sfx("die", p.pos);
+  // An online kill is credited by the killer's own screen when it sees this death.
+  if (attacker.remote) netEvent(net.deaths, [attacker.u, power ? 1 : 0], 4);
+  else attacker.kills++;
+  if (p.human || attacker.human) saveScore();
+  emote(p, "💀");
+  if (attacker.ai && Math.random() < 0.6) emote(attacker, Math.random() < 0.5 ? "😎" : "😂");
+  feed(`${attacker.name} ${power ? "⚡🩴" : "🩴"} ${p.name}`);
+  return true;
+}
+
+// Moves the player along one axis at a time so it slides along walls.
+// Returns true when horizontal movement was blocked.
+function physics(p, move, jump, speed, dt) {
+  p.vel.x = move.x * speed + p.knock.x;
+  p.vel.z = move.z * speed + p.knock.z;
+  p.knock.multiplyScalar(Math.exp(-5 * dt));
+  if (jump && p.onGround) p.vel.y = JUMP_SPEED;
+  p.vel.y -= GRAVITY * dt;
+  let blocked = false;
+  for (const a of ["x", "z"]) {
+    const old = p.pos[a];
+    p.pos[a] += p.vel[a] * dt;
+    if (collides(p.pos.x, p.pos.y, p.pos.z)) { p.pos[a] = old; blocked = true; }
+  }
+  const oldY = p.pos.y;
+  p.pos.y += p.vel.y * dt;
+  p.onGround = false;
+  if (collides(p.pos.x, p.pos.y, p.pos.z)) {
+    if (p.vel.y < 0) {
+      p.pos.y = Math.floor(p.pos.y) + 1;            // stand exactly on top of the block
+      if (collides(p.pos.x, p.pos.y, p.pos.z)) p.pos.y = oldY;
+      const under = blockAt(Math.floor(p.pos.x), Math.floor(p.pos.y) - 1, Math.floor(p.pos.z));
+      if (under === "bounce") { p.vel.y = BOUNCE_PAD_SPEED; sfx("boing", p.pos); return blocked; }
+      p.onGround = true;
+    } else p.pos.y = oldY;
+    p.vel.y = 0;
+  }
+  return blocked;
+}
+
+// ---------------------------------------------------------------------------
+// Slippers: bounce off everything, power slippers smash built blocks.
+// They collide as a small sphere; the slipper model just tumbles around it.
+// ---------------------------------------------------------------------------
+const balls = [];
+const SLIPPER_MATS = {
+  normal: { sole: new THREE.MeshStandardMaterial({ color: 0xff7aa8 }),
+            strap: new THREE.MeshStandardMaterial({ color: 0xffffff }) },
+  power: { sole: new THREE.MeshStandardMaterial({ color: 0xff5a1f, emissive: 0xff3300, emissiveIntensity: 0.8 }),
+           strap: new THREE.MeshStandardMaterial({ color: 0xffd23a, emissive: 0xff9900, emissiveIntensity: 0.6 }) },
+};
+
+// Toe points to -Z. The outer group carries the heading, the inner one tumbles.
+function makeSlipper(power) {
+  const m = SLIPPER_MATS[power ? "power" : "normal"];
+  const mesh = new THREE.Group();
+  const spin = new THREE.Group();
+  mesh.add(spin);
+  box(0.26, 0.06, 0.34, m.sole, 0, -0.03, -0.1, spin);   // front of the sole
+  box(0.22, 0.06, 0.24, m.sole, 0, -0.03, 0.17, spin);   // heel
+  box(0.28, 0.1, 0.16, m.strap, 0, 0.05, -0.12, spin);   // strap over the toes
+  mesh.scale.setScalar(power ? 1.5 : 1);
+  mesh.userData.spin = spin;
+  return mesh;
+}
+
+function spawnSlipper(owner, pos, vel, power, dmg) {
+  const mesh = makeSlipper(power);
+  scene.add(mesh);
+  balls.push({ mesh, pos, vel, owner, power, dmg, r: power ? 0.3 : 0.18, life: BALL_LIFE, hit: new Set() });
+}
+
+// Taym throws two slippers side by side, each hitting twice as hard.
+function throwBall(p, vel, power) {
+  const fwd = forwardVec(p.yaw);
+  const pos = p.pos.clone().add(new V3(0, 1.4, 0)).addScaledVector(rightVec(p.yaw), 0.35).addScaledVector(fwd, 0.3);
+  const dmg = power ? MAX_HP : p.taym ? 2 : 1;
+  const vels = p.taym ? [-TAYM_SPREAD, TAYM_SPREAD].map(a => vel.clone().applyAxisAngle(new V3(0, 1, 0), a)) : [vel];
+  for (const v of vels) {
+    spawnSlipper(p, pos.clone(), v, power, dmg);
+    if (p.human) netEvent(net.throws, [...[pos.x, pos.y, pos.z, v.x, v.y, v.z].map(n => Math.round(n * 100) / 100), power ? 1 : 0, dmg], 6);
+  }
+  p.cooldown = THROW_COOLDOWN;
+  p.throwAnim = 0.25;
+  p.shield = 0;                 // attacking ends spawn protection
+  sfx(power ? "powerThrow" : "throw", p.pos);
+}
+
+function updateBall(b, dt) {
+  b.vel.y -= (b.power ? POWER_GRAVITY : BALL_GRAVITY) * dt;
+  for (const a of ["x", "y", "z"]) {
+    const old = b.pos[a];
+    b.pos[a] += b.vel[a] * dt;
+    const probe = b.pos.clone();
+    probe[a] += Math.sign(b.vel[a]) * b.r;
+    const i = Math.floor(probe.x), j = Math.floor(probe.y), k = Math.floor(probe.z);
+    if (!isSolid(i, j, k)) continue;
+    const type = blockAt(i, j, k);
+    if (b.power && b.vel.length() > 12 && type && type !== "wall") {
+      removeBlock(i, j, k, b.owner.human);  // smash through, losing some speed
+      b.vel.multiplyScalar(0.75);
+      continue;
+    }
+    if (b.power && type === "wall" && Math.abs(b.vel[a]) > 8) burst(b.pos, TYPES.wall.mat, 4, 3);  // clang
+    b.pos[a] = old;
+    if (Math.abs(b.vel[a]) > 4) sfx(type === "bounce" ? "boing" : "bounce", b.pos);
+    b.vel[a] *= -(type === "bounce" ? 1.1 : BALL_RESTITUTION);
+    if (a === "y") { b.vel.x *= 0.85; b.vel.z *= 0.85; }
+  }
+  b.life -= dt;
+  b.mesh.position.copy(b.pos);
+  b.mesh.position.y -= b.r * 0.7;   // sit the sole on the floor instead of at the sphere's center
+  const spin = b.mesh.userData.spin;
+  if (Math.hypot(b.vel.x, b.vel.z) > 1) b.mesh.rotation.y = yawFromVec(b.vel);
+  if (b.vel.length() > 4) spin.rotation.x -= dt * 18;              // flip end over end in the air
+  else spin.rotation.x += (Math.round(spin.rotation.x / (2 * Math.PI)) * 2 * Math.PI - spin.rotation.x) * Math.min(1, dt * 8);  // settle flat
+
+  if (b.vel.length() < HIT_MIN_SPEED) return;
+  for (const p of players) {
+    if (p === b.owner || !p.name || !p.alive || p.shield > 0 || b.hit.has(p)) continue;   // flies through shielded players
+    const dy = clamp(b.pos.y, p.pos.y + 0.3, p.pos.y + 1.6) - b.pos.y;
+    const dx = p.pos.x - b.pos.x, dz = p.pos.z - b.pos.z;
+    if (Math.hypot(dx, dy, dz) > b.r + 0.4) continue;
+    b.hit.add(p);
+    // Someone online decides on their own screen whether they got hit; here it only bounces off.
+    if (p.remote) { if (b.owner.human) hitT = Math.max(hitT, 0.2); }
+    else hurt(p, b.dmg, b.owner, b.power, b.vel);
+    b.vel.multiplyScalar(-0.3);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Input
+// ---------------------------------------------------------------------------
+const keys = new Set();
+// Some browsers/embedded views refuse pointer lock, so the game runs without it
+// (mouse look then works while the cursor is over the window, arrows always work).
+let playing = false, locked = false, buildMode = false, buildType = 0, mouseHeld = false;
+const startEl = document.getElementById("start");
+function tryLock() {
+  try { renderer.domElement.requestPointerLock()?.catch?.(() => {}); } catch {}
+}
+function setPlaying(on) {
+  playing = on;
+  startEl.style.display = on ? "none" : "flex";
+  $("resumeMsg").style.display = me.name ? "block" : "none";
+  if (on) { try { audio ??= new AudioContext(); audio.resume(); } catch {} }
+  if (!on) { keys.clear(); mouseHeld = false; me.charging = false; }
+}
+// Before joining, only the Play button starts; after that a click anywhere resumes.
+startEl.addEventListener("click", () => { if (me.name) { setPlaying(true); tryLock(); } });
+renderer.domElement.addEventListener("click", () => { if (playing && !locked) tryLock(); });
+document.addEventListener("pointerlockchange", () => {
+  const was = locked;
+  locked = document.pointerLockElement === renderer.domElement;
+  if (was && !locked) setPlaying(false);   // Esc released the mouse: pause
+});
+addEventListener("keydown", e => {
+  if (!playing || e.target.tagName === "INPUT") return;   // typing a name or chat message
+  if (e.code === "Escape" && !locked) { setPlaying(false); return; }
+  keys.add(e.code);
+  if (e.code === "KeyB") { buildMode = !buildMode; me.charging = false; }
+  if (e.code === "KeyR" && !me.alive) { me.deadT = RESPAWN_TIME; }
+  if (e.code === "KeyT" || e.code === "Enter") { e.preventDefault(); openChat(); return; }
+  const n = Number(e.key);
+  if (n >= 1 && n <= EMOJIS.length) myEmote(EMOJIS[n - 1]);
+  if (e.code === "Space") e.preventDefault();
+});
+addEventListener("keyup", e => keys.delete(e.code));
+function look(dx, dy, sens) {
+  me.yaw -= dx * sens;
+  me.pitch = clamp(me.pitch - dy * sens, -1.3, 1.2);
+}
+function placeBlock() {
+  const hit = aimBlock();
+  if (!hit?.place || !hit.canPlace) return;
+  const id = `${myU}.${++blockSeq}`;
+  addBlock(...hit.place, BUILD_TYPES[buildType], id);
+  mine.set(id, [...hit.place, buildType]);
+  if (mine.size > MY_BLOCKS_MAX) {      // the oldest block makes room
+    const [oldId, [i, j, k]] = mine.entries().next().value;
+    if (blocks.get(key(i, j, k))?.id === oldId) removeBlock(i, j, k, true, true);
+    mine.delete(oldId);
+  }
+}
+function breakBlock() {
+  const hit = aimBlock();
+  if (hit && hit.j >= 0) removeBlock(hit.i, hit.j, hit.k, true);
+}
+function startCharge() { me.charging = true; me.charge = 0; }
+// Touch screens also fire fake mouse events after a tap; ignore those.
+let lastTouch = -1e9;
+addEventListener("touchstart", () => { lastTouch = performance.now(); }, { capture: true, passive: true });
+const fakeMouse = () => performance.now() - lastTouch < 1000;
+
+addEventListener("mousemove", e => {
+  if (!playing || fakeMouse()) return;
+  look(e.movementX, e.movementY, MOUSE_SENSITIVITY);
+});
+addEventListener("mousedown", e => {
+  if (!playing || !me.alive || fakeMouse() || e.target !== renderer.domElement) return;   // not on a button
+  if (buildMode) {
+    if (e.button === 0) placeBlock();
+    if (e.button === 2) breakBlock();
+  } else if (e.button === 0) { mouseHeld = true; startCharge(); }
+});
+addEventListener("mouseup", e => {
+  if (e.button !== 0 || !mouseHeld) return;
+  mouseHeld = false;
+  releaseThrow();
+});
+function releaseThrow() {
+  if (!me.charging || !me.alive) return;
+  me.charging = false;
+  if (me.cooldown > 0) return;
+  const power = me.charge >= 1;
+  const speed = NORMAL_SPEED + (POWER_SPEED - NORMAL_SPEED) * me.charge;
+  const from = me.pos.clone().add(new V3(0, 1.4, 0)).addScaledVector(rightVec(me.yaw), 0.35);
+  const dir = aimPoint().sub(from).normalize();
+  const vel = dir.multiplyScalar(speed);
+  if (!power) vel.y += 1.5;
+  throwBall(me, vel, power);
+}
+addEventListener("contextmenu", e => e.preventDefault());
+addEventListener("wheel", e => {
+  if (!playing) return;
+  buildType = (buildType + (e.deltaY > 0 ? 1 : BUILD_TYPES.length - 1)) % BUILD_TYPES.length;
+});
+
+const camDir = () => new V3(-Math.sin(me.yaw) * Math.cos(me.pitch), Math.sin(me.pitch), -Math.cos(me.yaw) * Math.cos(me.pitch));
+function aimPoint() {
+  const d = camDir();
+  const hit = raycast(camera.position, d, 80);
+  return camera.position.clone().addScaledVector(d, hit ? hit.t : 80);
+}
+// Block under the crosshair, plus the empty cell in front of it where a new block would go.
+function aimBlock() {
+  const hit = raycast(camera.position, camDir(), BUILD_REACH);
+  if (!hit) return null;
+  const place = [hit.i + hit.n[0], hit.j + hit.n[1], hit.k + hit.n[2]];
+  const [pi, pj, pk] = place;
+  const inside = pi >= -ARENA && pi < ARENA && pk >= -ARENA && pk < ARENA && pj >= 0 && pj < BUILD_MAX_H;
+  return { ...hit, place, canPlace: inside && !cellHasPlayer(pi, pj, pk) && !isSolid(pi, pj, pk) };
+}
+function cellHasPlayer(i, j, k, list = players) {
+  return list.some(p => p.name && p.alive &&
+    i + 1 > p.pos.x - HALF_W && i < p.pos.x + HALF_W &&
+    k + 1 > p.pos.z - HALF_W && k < p.pos.z + HALF_W &&
+    j + 1 > p.pos.y && j < p.pos.y + HEIGHT);
+}
+
+const ghost = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.02, 1.02, 1.02)),
+  new THREE.LineBasicMaterial({ color: 0xffffff }));
+scene.add(ghost);
+
+// ---------------------------------------------------------------------------
+// Bots
+// ---------------------------------------------------------------------------
+function hasLineOfSight(a, b) {
+  const from = a.pos.clone().setY(a.pos.y + 1.5), to = b.pos.clone().setY(b.pos.y + 1.2);
+  const d = to.clone().sub(from), dist = d.length();
+  return !raycast(from, d.normalize(), dist);
+}
+
+// Launch velocity that lands on the target with a given horizontal speed.
+function lobVelocity(from, to, hSpeed, g) {
+  const flatD = new V3(to.x - from.x, 0, to.z - from.z);
+  const t = Math.max(flatD.length() / hSpeed, 0.15);
+  const vy = (to.y - from.y) / t + 0.5 * g * t;
+  return flatD.normalize().multiplyScalar(hSpeed).setY(vy);
+}
+
+function botThink(p, dt) {
+  const ai = p.ai;
+  ai.thinkT -= dt;
+  if (ai.thinkT <= 0) {
+    ai.thinkT = 0.5;
+    let best = null, bestD = Infinity;
+    for (const o of players) {
+      if (o === p || !o.name || !o.alive || o.shield > 0) continue;
+      const d = o.pos.distanceTo(p.pos);
+      if (d < bestD) { best = o; bestD = d; }
+    }
+    ai.target = best;
+    if (Math.random() < 0.1) ai.strafe *= -1;
+  }
+  const t = ai.target?.alive ? ai.target : null;
+  let move = new V3();
+  if (ai.wanderT > 0) { ai.wanderT -= dt; move.copy(ai.wander); }
+  else if (t) {
+    const to = t.pos.clone().sub(p.pos).setY(0);
+    const d = to.length();
+    to.normalize();
+    const side = new V3(-to.z, 0, to.x).multiplyScalar(ai.strafe);
+    if (d > 12) move.copy(to).addScaledVector(side, 0.3);
+    else if (d < 6) move.copy(to).negate().add(side);
+    else move.copy(side);
+    move.normalize();
+  }
+  // Look at the target, or where we walk.
+  if (t) p.yaw = yawFromVec(t.pos.clone().sub(p.pos));
+  else if (move.lengthSq() > 0) p.yaw = yawFromVec(move);
+
+  // Throwing
+  if (p.charging) {
+    p.charge += dt / CHARGE_TIME;
+    if (p.charge >= 1 && t) {
+      p.charging = false;
+      const from = p.pos.clone().setY(p.pos.y + 1.4);
+      const aim = t.pos.clone().setY(t.pos.y + 1).add(new V3(rand(-1, 1), 0, rand(-1, 1)));
+      throwBall(p, lobVelocity(from, aim, 24, POWER_GRAVITY), true);
+    } else if (!t) p.charging = false;
+  } else {
+    ai.throwT -= dt;
+    if (ai.throwT <= 0 && t && p.cooldown <= 0 && t.pos.distanceTo(p.pos) < 22 && hasLineOfSight(p, t)) {
+      ai.throwT = rand(1.2, 3);
+      if (Math.random() < 0.25) { p.charging = true; p.charge = 0; }
+      else {
+        const from = p.pos.clone().setY(p.pos.y + 1.4);
+        const lead = t.vel.clone().setY(0).multiplyScalar(0.3);
+        const aim = t.pos.clone().setY(t.pos.y + 1).add(lead).add(new V3(rand(-1.2, 1.2), 0, rand(-1.2, 1.2)));
+        throwBall(p, lobVelocity(from, aim, 14, BALL_GRAVITY), false);
+      }
+    }
+  }
+
+  ai.emoteT -= dt;
+  if (ai.emoteT <= 0) { ai.emoteT = rand(6, 15); emote(p, EMOJIS[Math.floor(Math.random() * EMOJIS.length)]); }
+
+  const jump = ai.stuckT > 0.25 || Math.random() < 0.004;
+  const blocked = physics(p, move, jump, BOT_SPEED, dt);
+  ai.stuckT = blocked && move.lengthSq() > 0 ? ai.stuckT + dt : 0;
+  if (ai.stuckT > 1) {     // can't get past: wander somewhere else for a bit
+    ai.stuckT = 0;
+    const a = rand(0, Math.PI * 2);
+    ai.wander = new V3(Math.cos(a), 0, Math.sin(a));
+    ai.wanderT = 1.5;
+  }
+  return move;
+}
+
+// ---------------------------------------------------------------------------
+// HUD
+// ---------------------------------------------------------------------------
+const $ = id => document.getElementById(id);
+// Names and chat come from other players: never let them become HTML.
+const esc = s => String(s).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+const feedLines = [];
+let hitT = 0, hurtT = 0;    // timers for the hit marker and the red "ouch" edge
+function feed(text) {
+  feedLines.push({ text, t: 5 });
+  if (feedLines.length > 5) feedLines.shift();
+}
+$("bar").innerHTML = BUILD_TYPES.map(t =>
+  `<div class="slot" style="background:#${TYPES[t].color.toString(16).padStart(6, "0")}cc">${TYPES[t].name}</div>`).join("");
+$("emojis").textContent = EMOJIS.map((e, n) => `${n + 1} ${e}`).join("   ");
+
+// ---------------------------------------------------------------------------
+// Touch controls: left stick moves, dragging the screen looks, buttons act
+// ---------------------------------------------------------------------------
+const stickMove = { x: 0, y: 0 };
+const showTouch = () => document.body.classList.add("touch");
+if (matchMedia("(pointer: coarse)").matches) showTouch();
+addEventListener("touchstart", showTouch, { passive: true });
+
+// Keep getting this finger's events even if it slides off the control.
+function capture(el, e) { try { el.setPointerCapture(e.pointerId); } catch {} }
+
+function onPress(el, down, up) {
+  el.addEventListener("pointerdown", e => {
+    e.preventDefault(); e.stopPropagation();
+    capture(el, e);
+    if (playing) down();
+  });
+  if (up) { el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up); }
+}
+
+const stick = $("stick"), knob = $("knob");
+let stickId = null;
+function moveStick(e) {
+  const r = stick.getBoundingClientRect();
+  let dx = (e.clientX - r.left) / (r.width / 2) - 1, dy = (e.clientY - r.top) / (r.height / 2) - 1;
+  const len = Math.hypot(dx, dy);
+  if (len > 1) { dx /= len; dy /= len; }
+  stickMove.x = dx; stickMove.y = dy;
+  knob.style.transform = `translate(${dx * r.width * 0.3}px, ${dy * r.width * 0.3}px)`;
+}
+function endStick(e) {
+  if (e.pointerId !== stickId) return;
+  stickId = null;
+  stickMove.x = stickMove.y = 0;
+  knob.style.transform = "";
+}
+stick.addEventListener("pointerdown", e => { stickId = e.pointerId; capture(stick, e); moveStick(e); });
+stick.addEventListener("pointermove", e => { if (e.pointerId === stickId) moveStick(e); });
+stick.addEventListener("pointerup", endStick);
+stick.addEventListener("pointercancel", endStick);
+
+let lookId = null, lookX = 0, lookY = 0;
+renderer.domElement.addEventListener("pointerdown", e => {
+  if (e.pointerType !== "touch" || lookId !== null) return;
+  lookId = e.pointerId; lookX = e.clientX; lookY = e.clientY;
+  $("emojiPick").classList.remove("open");
+});
+addEventListener("pointermove", e => {
+  if (e.pointerId !== lookId || !playing) return;
+  look(e.clientX - lookX, e.clientY - lookY, 0.006);
+  lookX = e.clientX; lookY = e.clientY;
+});
+const endLook = e => { if (e.pointerId === lookId) lookId = null; };
+addEventListener("pointerup", endLook);
+addEventListener("pointercancel", endLook);
+
+onPress($("tJump"), () => keys.add("Space"), () => keys.delete("Space"));
+onPress($("tThrow"), () => { if (me.alive) buildMode ? placeBlock() : startCharge(); }, () => { if (!buildMode) releaseThrow(); });
+onPress($("tBreak"), () => { if (me.alive) breakBlock(); });
+onPress($("tBuild"), () => { buildMode = !buildMode; me.charging = false; });
+onPress($("tType"), () => { buildType = (buildType + 1) % BUILD_TYPES.length; });
+onPress($("tEmoji"), () => $("emojiPick").classList.toggle("open"));
+for (const e of EMOJIS) {
+  const s = document.createElement("span");
+  s.textContent = e;
+  onPress(s, () => { myEmote(e); $("emojiPick").classList.remove("open"); });
+  $("emojiPick").appendChild(s);
+}
+
+function updateHud() {
+  $("hp").textContent = me.alive ? "❤️".repeat(me.hp) + "🤍".repeat(MAX_HP - me.hp) : "💀";
+  const touch = document.body.classList.contains("touch");
+  $("mode").textContent = buildMode ? `🧱 BUILD (${TYPES[BUILD_TYPES[buildType]].name})${touch ? "" : " — B to throw"}`
+                                    : `🩴 THROW${touch ? "" : " — B to build"}`;
+  $("bar").style.display = buildMode ? "flex" : "none";
+  [...$("bar").children].forEach((el, n) => el.classList.toggle("on", n === buildType));
+  const ch = $("charge");
+  ch.style.display = me.charging ? "block" : "none";
+  ch.classList.toggle("full", me.charge >= 1);
+  ch.firstChild.style.width = `${me.charge * 100}%`;
+  $("board").innerHTML = (netLabel() ? `<div>${netLabel()}</div>` : "") +
+    players.filter(p => p.name).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths)
+    .map(p => `<div class="${p.human ? "me" : ""}">${esc(p.taym ? "👑 " + p.name : p.name)}: ${p.kills} 🏆 ${p.deaths} 💀</div>`).join("");
+  $("feed").innerHTML = feedLines.map(l => `<div>${esc(l.text)}</div>`).join("");
+  $("big").textContent = me.alive || !me.name ? "" : `You died! ${Math.ceil(RESPAWN_TIME - me.deadT)}…`;
+  if (!playing) $("netStatus").textContent = !net.ready ? "Connecting…"
+    : net.room ? `🌐 Online arena: ${playingPeers().length + (net.joined ? 1 : 0)}/${MAX_PLAYERS} playing. Everyone who opens this page plays here together.`
+    : "🤖 Solo: playing with bots.";
+  $("cross").classList.toggle("hit", hitT > 0);
+  $("ko").style.opacity = hitT > 0.3 ? 1 : 0;      // only kills set hitT that high
+  $("ouch").style.opacity = Math.max(0, hurtT / 0.4);
+  if (touch) {
+    $("tBuild").classList.toggle("on", buildMode);
+    $("tThrow").textContent = buildMode ? "🧱" : "🩴";
+    $("tBreak").style.display = $("tType").style.display = buildMode ? "flex" : "none";
+    $("tType").style.background = `#${TYPES[BUILD_TYPES[buildType]].color.toString(16).padStart(6, "0")}`;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Main loop
+// ---------------------------------------------------------------------------
+const me = makePlayer("", "me");    // gets a name when joining
+function addBots() { if (!players.some(p => p.ai)) BOT_NAMES.forEach(n => makePlayer(n, "bot")); }
+addBots();
+
+// ---------------------------------------------------------------------------
+// Online play. Everyone who opens the published page shares one arena through
+// the page's room: each player broadcasts its own state (position, throws,
+// deaths, emoji, chat, the blocks it built) ~15 times a second and every screen
+// draws the others from that. A hit only counts on the victim's own screen; the
+// killer gets the point when the victim's death notice arrives. Nothing is kept
+// on a server: each device remembers scores under the player's name.
+// ---------------------------------------------------------------------------
+const remotes = new Map();     // room peer -> { p, s, t, x, e, c, blocks, broken }
+let isOwner = false;
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem("blockArena." + k)); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem("blockArena." + k, JSON.stringify(v)); } catch {} },
+};
+const scoreKey = name => "score." + name.toLowerCase();
+function saveScore() { if (me.name) store.set(scoreKey(me.name), { k: me.kills, d: me.deaths }); }
+
+function netEvent(list, data, max) {
+  list.push([++net.seq, ...data]);
+  if (list.length > max) list.shift();
+}
+function myEmote(e) { emote(me, e); net.emoji = [++net.seq, e]; }
+
+const num = (v, lo, hi, d = 0) => Number.isFinite(v) ? clamp(v, lo, hi) : d;
+const cleanName = s => String(s ?? "").replace(/[\u0000-\u001f\u007f<>]/g, "").trim().slice(0, 12);
+const cleanChat = s => String(s ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 100);
+const lastSeq = list => Array.isArray(list) ? list.reduce((m, ev) => Math.max(m, num(ev?.[0], 0, 1e9)), 0) : 0;
+const r2 = n => Math.round(n * 100) / 100;
+
+const playingPeers = () => net.room ? net.room.peers().filter(pr =>
+  !pr.sameTab && pr.kind === "viewer" && typeof pr.presence?.n === "string") : [];
+function netLabel() {
+  if (!net.room) return "🤖 Solo with bots";
+  return `🌐 Online ${playingPeers().length + (net.joined ? 1 : 0)}/${MAX_PLAYERS}`;
+}
+
+function netSend(dt) {
+  if (!net.room || !net.joined) return;
+  net.sendT -= dt;
+  if (net.sendT > 0) return;
+  net.sendT = 1 / SEND_RATE;
+  net.room.presence({
+    u: myU, n: me.name, tm: me.taym ? 1 : 0,
+    p: [r2(me.pos.x), r2(me.pos.y), r2(me.pos.z), r2(me.yaw)],
+    a: me.alive ? 1 : 0, sh: me.shield > 0 ? 1 : 0, ch: me.charging ? 1 : 0, k: me.kills, d: me.deaths,
+    t: net.throws, x: net.deaths, e: net.emoji, c: net.chat,
+    b: [...mine].map(([id, b]) => `${id.split(".")[1]},${b.join(",")}`).join(";"),
+    r: net.broken.join(";"),
+  }).catch(() => {});
+}
+
+// Everything in a presence came from another page: check every field.
+function applyRemote(peer, s) {
+  let r = remotes.get(peer);
+  if (r?.s === s) return;             // unchanged since last time
+  const name = cleanName(s.n) || "Player";
+  const first = !r;
+  if (first) {
+    // Only what happens from now on counts, not throws or deaths from before we saw them.
+    r = { p: makePlayer(name, "remote"), t: lastSeq(s.t), x: lastSeq(s.x),
+          e: num(s.e?.[0], 0, 1e9), c: num(s.c?.[0], 0, 1e9), blocks: new Map(), broken: [] };
+    remotes.set(peer, r);
+    feed(`${name} joined`);
+  }
+  r.s = s;
+  const p = r.p;
+  setName(p, name, !!s.tm);
+  p.u = String(s.u ?? "").slice(0, 12);
+  p.kills = num(s.k, 0, 1e6); p.deaths = num(s.d, 0, 1e6);
+  if (Array.isArray(s.p)) {
+    p.netPos.set(num(s.p[0], -ARENA - 2, ARENA + 2), num(s.p[1], -20, 40), num(s.p[2], -ARENA - 2, ARENA + 2));
+    p.netYaw = num(s.p[3], -100, 100);
+  }
+  if (first) { p.pos.copy(p.netPos); p.yaw = p.netYaw; }
+  p.shield = s.sh ? 1 : 0;
+  p.charging = !!s.ch;
+  if (s.a && !p.alive) { p.alive = true; p.deadT = 0; p.body.rotation.x = 0; p.root.visible = true; p.pos.copy(p.netPos); }
+  else if (!s.a && p.alive) { p.alive = false; p.deadT = 0; emote(p, "💀"); sfx("die", p.pos); }
+
+  for (const ev of Array.isArray(s.t) ? s.t : []) {
+    const seq = num(ev?.[0], 0, 1e9);
+    if (seq <= r.t || ev.length < 9) continue;
+    r.t = seq;
+    const [x, y, z, vx, vy, vz] = ev.slice(1, 7).map(v => num(v, -60, 60));
+    const power = !!ev[7];
+    spawnSlipper(p, new V3(x, y, z), new V3(vx, vy, vz), power, Math.round(num(ev[8], 1, MAX_HP, 1)));
+    p.throwAnim = 0.25;
+    sfx(power ? "powerThrow" : "throw", p.pos);
+  }
+  for (const ev of Array.isArray(s.x) ? s.x : []) {
+    const seq = num(ev?.[0], 0, 1e9);
+    if (seq <= r.x) continue;
+    r.x = seq;
+    const killer = ev[1] === myU ? me : players.find(o => o.u && o.u === ev[1]);
+    feed(`${killer?.name || "Someone"} ${ev[2] ? "⚡🩴" : "🩴"} ${p.name}`);
+    if (killer === me) { me.kills++; saveScore(); hitT = 0.8; }
+  }
+  if (num(s.e?.[0], 0, 1e9) > r.e) { r.e = s.e[0]; if (EMOJIS.includes(s.e[1])) emote(p, s.e[1]); }
+  if (num(s.c?.[0], 0, 1e9) > r.c) { r.c = s.c[0]; const text = cleanChat(s.c[1]); if (text) addChat(p.name, text); }
+
+  // The blocks they built ("n,i,j,k,type;...") and the ids of others' blocks they broke.
+  if (s.b === r.lastB && s.r === r.lastR) return;
+  r.lastB = s.b; r.lastR = s.r;
+  r.blocks = new Map();
+  for (const part of String(s.b ?? "").split(";")) {
+    const v = part.split(",").map(Number);
+    if (v.length !== 5 || !v.every(Number.isInteger)) continue;
+    const [n, i, j, k, t] = v;
+    if (i < -ARENA || i >= ARENA || k < -ARENA || k >= ARENA || j < 0 || j >= BUILD_MAX_H || !BUILD_TYPES[t]) continue;
+    r.blocks.set(`${p.u}.${n}`, [i, j, k, t]);
+    if (r.blocks.size >= MY_BLOCKS_MAX) break;
+  }
+  r.broken = String(s.r ?? "").split(";").filter(Boolean).slice(-BROKEN_MAX);
+}
+
+function dropRemote(peer) {
+  const r = remotes.get(peer);
+  if (!r) return;
+  remotes.delete(peer);
+  removePlayer(r.p);
+  feed(`${r.p.name} left`);
+}
+
+// Bots only play when you're alone in the arena.
+function syncBots() {
+  if (remotes.size > 0) players.filter(p => p.ai).forEach(removePlayer);
+  else addBots();
+}
+
+// Make the built blocks match what everyone says: all blocks built by players
+// still here, minus any that someone broke.
+function worldSync() {
+  const now = performance.now();
+  for (const [id, t] of recentBroken) if (now - t > 4000) recentBroken.delete(id);
+  const gone = new Set(net.broken);
+  const want = new Map(mine);
+  for (const r of remotes.values()) {
+    r.broken.forEach(id => gone.add(id));
+    for (const [id, b] of r.blocks) want.set(id, b);
+  }
+  for (const [cell, b] of blocks)
+    if (b.id && (!want.has(b.id) || gone.has(b.id))) removeBlock(...cell.split(",").map(Number), false, true);
+  for (const id of gone) mine.delete(id);    // someone broke one of mine
+  for (const [id, [i, j, k, t]] of want) {
+    if (gone.has(id) || recentBroken.has(id) || blocks.has(key(i, j, k)) || cellHasPlayer(i, j, k, [me])) continue;
+    addBlock(i, j, k, BUILD_TYPES[t], id);
+  }
+}
+
+function onPeersChange({ peers, left }) {
+  for (const pr of left) dropRemote(pr.peer);
+  for (const pr of peers) {
+    if (pr.sameTab || pr.kind !== "viewer") continue;
+    const s = pr.presence;
+    if (typeof s?.n === "string" && Array.isArray(s.p)) applyRemote(pr.peer, s);
+    else dropRemote(pr.peer);          // here, but still on the join screen
+  }
+  syncBots();
+  worldSync();
+}
+
+// --- Chat (hidden until opened) ---
+const chatLines = [];
+let unread = 0;
+function addChat(name, text) {
+  chatLines.push({ name, text });
+  if (chatLines.length > 30) chatLines.shift();
+  const log = $("chatLog");
+  log.innerHTML = chatLines.map(l => `<div><b>${esc(l.name)}:</b> ${esc(l.text)}</div>`).join("");
+  log.scrollTop = log.scrollHeight;
+  if (!$("chat").classList.contains("open")) $("chatBadge").textContent = ++unread;
+}
+function openChat() {
+  $("chat").classList.add("open");
+  unread = 0; $("chatBadge").textContent = "";
+  keys.clear(); mouseHeld = false; me.charging = false;
+  setTimeout(() => $("chatIn").focus());    // after the T key is done, so no "t" lands in the box
+}
+function closeChat() { $("chat").classList.remove("open"); $("chatIn").blur(); }
+$("chatBtn").addEventListener("click", e => { e.stopPropagation(); $("chat").classList.contains("open") ? closeChat() : openChat(); });
+$("chatIn").addEventListener("keydown", e => {
+  e.stopPropagation();                 // typing must not move the player
+  if (e.key === "Enter") {
+    const text = cleanChat($("chatIn").value);
+    $("chatIn").value = "";
+    if (text && me.name) { net.chat = [++net.seq, text]; addChat(me.name, text); }
+    closeChat();
+  } else if (e.key === "Escape") closeChat();
+});
+
+// --- Direct connection, for when the game isn't on claude.ai ---
+// Trystero links players' browsers straight to each other (WebRTC); public Nostr
+// relays only introduce them. This wraps it in the same few calls the game uses
+// for the claude.ai room: presence(), peers(), onPeers().
+const P2P_APP = "sandala-arena-taym-v1";
+const P2P_FULL_EVERY = 1000;    // ms between updates that include the built blocks
+const P2P_SILENT_DROP = 10000;  // forget a player we haven't heard from for this long
+
+async function p2pRoom() {
+  const { joinRoom } = await import("https://cdn.jsdelivr.net/npm/trystero@0.25.4/+esm");
+  const room = joinRoom({ appId: P2P_APP }, "arena");
+  const states = new Map();     // peer id -> { presence, at }
+  const handlers = [];
+  let mine = null, lastFull = 0;
+  const snapshot = () => [...states].map(([peer, s]) => ({ peer, sameTab: false, kind: "viewer", presence: s.presence }));
+  const notify = (left = []) => { const peers = snapshot(); handlers.forEach(h => h({ peers, left })); };
+
+  const state = room.makeAction("state");
+  state.onMessage = (data, { peerId }) => {
+    if (!data || typeof data !== "object" || Array.isArray(data)) return;
+    const prev = states.get(peerId)?.presence;
+    // Quick updates leave out the blocks; keep the last full list we got.
+    states.set(peerId, { presence: { b: prev?.b, r: prev?.r, ...data }, at: performance.now() });
+    notify();
+  };
+  room.onPeerJoin = peerId => { if (mine) state.send(mine, { target: peerId }); };
+  room.onPeerLeave = peerId => { if (states.delete(peerId)) notify([{ peer: peerId }]); };
+  setInterval(() => {
+    const now = performance.now(), gone = [];
+    for (const [peer, s] of states) if (now - s.at > P2P_SILENT_DROP) { states.delete(peer); gone.push({ peer }); }
+    if (gone.length) notify(gone);
+  }, 2000);
+
+  return {
+    async presence(obj) {
+      mine = obj;
+      const now = performance.now();
+      if (now - lastFull > P2P_FULL_EVERY) { lastFull = now; await state.send(obj); }
+      else { const { b, r, ...quick } = obj; await state.send(quick); }
+    },
+    peers: snapshot,
+    onPeers(h) { handlers.push(h); return () => {}; },
+  };
+}
+
+// --- Joining ---
+const nameIn = $("nameIn");
+nameIn.value = store.get("name") || "";
+const joinErr = t => { $("joinErr").textContent = t; };
+// Taym can also come in without the owner's account, from any device, with the
+// owner password. It's a family lock, not real security: anyone reading the page source can see it.
+const OWNER_PASSWORD = "1234";
+const passIn = $("passIn");
+const wantsTaym = () => !isOwner && cleanName(nameIn.value).toLowerCase() === "taym";
+function showPass() { passIn.style.display = wantsTaym() && !store.get("taymOk") ? "block" : "none"; }
+nameIn.addEventListener("input", showPass);
+passIn.addEventListener("keydown", e => { if (e.key === "Enter") joinGame(); });
+
+function joinGame() {
+  const taym = isOwner || wantsTaym();
+  if (wantsTaym() && !store.get("taymOk")) {
+    if (passIn.value !== OWNER_PASSWORD) { passIn.value = ""; return joinErr("Wrong password. Only Taym can use this name."); }
+    store.set("taymOk", true);       // this device remembers, no password next time
+  }
+  const name = taym ? "Taym" : cleanName(nameIn.value);
+  if (!name) return joinErr("Type your name first.");
+  const others = playingPeers();
+  if (others.length >= MAX_PLAYERS) return joinErr(`The arena is full (${MAX_PLAYERS} players). Try again in a bit.`);
+  if (others.some(pr => cleanName(pr.presence.n).toLowerCase() === name.toLowerCase()))
+    return joinErr(`Someone called ${name} is already playing.`);
+  store.set("name", name);
+  const saved = store.get(scoreKey(name));     // welcome back: keep counting from your last score
+  me.kills = saved?.k | 0; me.deaths = saved?.d | 0;
+  setName(me, name, taym);
+  net.joined = !!net.room;
+  respawn(me);
+  $("joinRow").style.display = "none";
+  joinErr("");
+  setPlaying(true);
+  tryLock();
+}
+$("playBtn").addEventListener("click", e => { e.stopPropagation(); joinGame(); });
+$("joinRow").addEventListener("click", e => e.stopPropagation());
+nameIn.addEventListener("keydown", e => { if (e.key === "Enter") joinGame(); });
+
+(async () => {
+  const c = window.claude;
+  // On claude.ai use its room; anywhere else (e.g. GitHub Pages) connect players directly.
+  const [room, user] = c?.use ? await Promise.all([c.use("room"), c.use("user")])
+                              : [await p2pRoom().catch(() => null), null];
+  isOwner = (await user?.isOwner()) ?? false;
+  if (isOwner) { nameIn.value = "Taym"; nameIn.readOnly = true; }
+  showPass();
+  net.ready = true;
+  if (!room) return;
+  net.room = room;
+  room.onPeers(onPeersChange, () => {      // can't reach the room any more: back to bots
+    net.room = null; net.joined = false;
+    [...remotes.keys()].forEach(dropRemote);
+    syncBots();
+  });
+})();
+
+function animate(p, move, dt) {
+  p.root.position.copy(p.pos);
+  p.root.rotation.y = p.yaw;
+  const glow = p.flash > 0 ? 0xff0000 : p.shield > 0 && Math.sin(p.shield * 25) > 0 ? 0x88ccff : 0x000000;
+  for (const m of p.mats) m.emissive.setHex(glow);
+  p.flash -= dt;
+  if (p.emojiT > 0) {
+    p.emojiT -= dt;
+    const s = 0.8 * Math.min(1, (2.5 - p.emojiT) * 6);   // pop in
+    p.bubble.scale.set(s, s, 1);
+    if (p.emojiT <= 0) p.bubble.visible = false;
+  }
+  if (!p.alive) {
+    p.body.rotation.x = Math.max(-Math.PI / 2, p.body.rotation.x - dt * 6);   // fall on the back
+    return;
+  }
+  const moving = move.lengthSq() > 0.01 && p.onGround;
+  p.walk += moving ? dt * 10 : 0;
+  const swing = moving ? Math.sin(p.walk) * 0.7 : 0;
+  p.parts.legL.rotation.x = swing;
+  p.parts.legR.rotation.x = -swing;
+  p.parts.armL.rotation.x = -swing;
+  if (p.charging) p.parts.armR.rotation.x = -2.6 * Math.min(1, p.charge + 0.3);   // wind up behind the head
+  else if (p.throwAnim > 0) p.parts.armR.rotation.x = 1.6;
+  else p.parts.armR.rotation.x = swing;
+  p.throwAnim -= dt;
+}
+
+function step(dt) {
+  for (const p of players) {
+    if (!p.name) continue;            // me, before joining: just a camera
+    p.cooldown -= dt;
+    if (!p.remote) p.shield -= dt;     // a remote player's shield comes from their own screen
+    let move = new V3();
+    if (!p.alive) {
+      p.deadT += dt;
+      if (p.deadT > 1.5) p.root.visible = false;
+      if (p.deadT >= RESPAWN_TIME && !p.remote) respawn(p);
+    } else if (p.remote) {
+      // Glide toward where they last said they were (updates arrive ~15 times a second).
+      const prev = p.pos.clone(), f = 1 - Math.exp(-12 * dt);
+      if (p.pos.distanceTo(p.netPos) > 4) p.pos.copy(p.netPos); else p.pos.lerp(p.netPos, f);
+      p.yaw += Math.atan2(Math.sin(p.netYaw - p.yaw), Math.cos(p.netYaw - p.yaw)) * f;
+      move = p.pos.clone().sub(prev).setY(0).divideScalar(dt * PLAYER_SPEED);
+      p.onGround = Math.abs(p.pos.y - p.netPos.y) < 0.1;
+      if (p.charging) p.charge = Math.min(1, p.charge + dt / CHARGE_TIME); else p.charge = 0;
+    } else if (p.human) {
+      if (keys.has("ArrowLeft")) p.yaw += TURN_SPEED * dt;
+      if (keys.has("ArrowRight")) p.yaw -= TURN_SPEED * dt;
+      if (keys.has("ArrowUp")) p.pitch = Math.min(1.2, p.pitch + TURN_SPEED * 0.6 * dt);
+      if (keys.has("ArrowDown")) p.pitch = Math.max(-1.3, p.pitch - TURN_SPEED * 0.6 * dt);
+      const f = forwardVec(p.yaw), r = rightVec(p.yaw);
+      if (keys.has("KeyW")) move.add(f);
+      if (keys.has("KeyS")) move.sub(f);
+      if (keys.has("KeyD")) move.add(r);
+      if (keys.has("KeyA")) move.sub(r);
+      move.addScaledVector(f, -stickMove.y).addScaledVector(r, stickMove.x);
+      if (move.lengthSq() > 1) move.normalize();   // a half-pushed stick walks slower
+      if (p.charging) p.charge = Math.min(1, p.charge + dt / CHARGE_TIME);
+      physics(p, move, keys.has("Space"), PLAYER_SPEED, dt);
+    } else move = botThink(p, dt);
+    if (p.pos.y < -10 && !p.remote) respawn(p);
+    animate(p, move, dt);
+  }
+
+  for (let n = balls.length - 1; n >= 0; n--) {
+    const b = balls[n];
+    updateBall(b, dt);
+    if (b.life <= 0 || b.pos.y < -5 || Math.abs(b.pos.x) > 60 || Math.abs(b.pos.z) > 60) {
+      scene.remove(b.mesh);
+      balls.splice(n, 1);
+    }
+  }
+  for (let n = particles.length - 1; n >= 0; n--) {
+    const q = particles[n];
+    q.vel.y -= GRAVITY * dt;
+    q.mesh.position.addScaledVector(q.vel, dt);
+    q.mesh.rotation.x += dt * 8;
+    q.life -= dt;
+    if (q.life <= 0 || q.mesh.position.y < 0) { scene.remove(q.mesh); particles.splice(n, 1); }
+  }
+  hitT -= dt; hurtT -= dt;
+  for (const l of feedLines) l.t -= dt;
+  while (feedLines.length && feedLines[0].t <= 0) feedLines.shift();
+}
+
+function updateCamera() {
+  const d = camDir();
+  const head = me.pos.clone().add(new V3(0, 1.6, 0)).addScaledVector(rightVec(me.yaw), 0.7);
+  const back = d.clone().negate();
+  const hit = raycast(head, back, 5);
+  const dist = hit ? Math.max(0.3, hit.t - 0.2) : 5;
+  camera.position.copy(head).addScaledVector(back, dist);
+  camera.lookAt(head.clone().add(d));
+  me.body.visible = me.tag.visible = dist > 1.2;   // don't look out from inside your own head against a wall
+  me.root.visible = !!me.name && (me.alive || me.deadT <= 1.5);
+
+  const target = buildMode && me.alive ? aimBlock() : null;
+  ghost.visible = !!target?.place;
+  if (ghost.visible) {
+    ghost.position.set(target.place[0] + 0.5, target.place[1] + 0.5, target.place[2] + 0.5);
+    ghost.material.color.setHex(target.canPlace ? 0xffffff : 0xff3333);
+  }
+}
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  // Fixed small substeps keep collisions stable. Paused while the start menu is up,
+  // except online: the shared arena keeps going while you're in the menu.
+  const steps = playing || net.room ? Math.ceil(dt / (1 / 120)) : 0;
+  for (let s = 0; s < steps; s++) step(dt / steps);
+  netSend(dt);
+  updateCamera();
+  updateHud();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
